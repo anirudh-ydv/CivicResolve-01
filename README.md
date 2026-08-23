@@ -1,7 +1,7 @@
 # CivicResolve 🏙️
 
 **Automated Public Infrastructure Reporting System**  
-*Hackathon MVP - Productivity & Social Good*
+* Productivity & Social Good*
 
 ## Overview
 
@@ -257,7 +257,3 @@ This section exists because a prior pass claimed things worked without verifying
 - [ ] OAuth2/OIDC municipal SSO
 - [ ] PWA offline submission queue
 - [ ] WebSocket real-time updates
-
-## License
-
-MIT - Built for hackathon demonstration.
