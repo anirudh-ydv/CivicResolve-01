@@ -1,0 +1,21 @@
+# CivicResolve Backend Requirements
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+sqlalchemy==2.0.25
+pydantic==2.5.3
+pydantic[email]==2.5.3
+python-multipart==0.0.6
+pillow==10.1.0
+torch
+torchvision
+numpy==1.26.3
+python-dotenv==1.0.0
+httpx==0.26.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]==3.3.0
+
+# Part 3: Postgres/PostGIS (versions pinned to what was actually tested)
+psycopg2-binary==2.9.12
+geoalchemy2==0.20.0
+shapely==2.1.2

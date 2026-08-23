@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      - POSTGRES_USER=civicresolve
+      - POSTGRES_PASSWORD=civicresolve_dev_pw
+      - POSTGRES_DB=civicresolve
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U civicresolve -d civicresolve"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+      - ./backend/models:/app/models
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://civicresolve:civicresolve_dev_pw@db:5432/civicresolve
+      - SQL_ECHO=false
+      - MODEL_PATH=/app/models/civicresolve_model.pth
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=changeme123
+      - CIVICRESOLVE_SECRET_KEY=dev-secret-change-in-production
+      - ACCESS_TOKEN_EXPIRE_MINUTES=60
+    depends_on:
+      db:
+        condition: service_healthy
+    # Runs the migration (create tables + seed real geo data) before
+    # starting the server. Both scripts are idempotent - safe to re-run
+    # on every container start (seed_geo_data.py no-ops if rows already
+    # exist, see models/seed_geo_data.py).
+    command: >
+      sh -c "python -c 'from models.database import init_db; init_db()' &&
+             python models/seed_geo_data.py &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend-citizen:
+    build:
+      context: ./Frontend/citizen
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Frontend/citizen:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    command: npm run dev -- --host 0.0.0.0
+
+  frontend-admin:
+    build:
+      context: ./Frontend/admin
+      dockerfile: Dockerfile
+    ports:
+      - "5174:5174"
+    volumes:
+      - ./Frontend/admin:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  model_cache:
+  uploads:
