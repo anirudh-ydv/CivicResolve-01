@@ -1,22 +1,44 @@
+# Python
 venv/
 .venv/
 backend/venv/
+
+# Python cache
 __pycache__/
 backend/**/__pycache__/
+
+# Environment files
 .env
 backend/.env
+
+# Local databases
 *.db
 *.db-journal
+
+# Trained ML model files
 *.pth
 *.pt
+
+# Uploaded files
 backend/uploads/*
 !backend/uploads/.gitkeep
+
+# Frontend dependencies
 node_modules/
+
+# Build output
 dist/
 build/
+
+# IDE/editor files
 .vscode/
 .idea/
+
+# OS files
 .DS_Store
+
+# Logs
 *.log
+
 # AI training datasets
 backend/ai/data/raw/
