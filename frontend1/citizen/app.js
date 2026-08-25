@@ -255,7 +255,21 @@ function renderResult(result) {
   `;
 
   const manualReviewNote = document.getElementById('manual-review-note');
-  manualReviewNote.style.display = result.requires_manual_review ? 'block' : 'none';
+  if (result.requires_manual_review) {
+    // If this was rejected by the CLIP OOD guard (ai/ood_guard.py), show
+    // the specific reason it gave instead of the generic message - e.g.
+    // "this looks like a cat" is far more useful to a citizen than a
+    // vague "AI wasn't confident enough." Falls back to the generic
+    // message if ood_reason isn't present (e.g. a normal low-confidence
+    // case that wasn't OOD-rejected, or if the OOD guard was disabled on
+    // the backend for that request).
+    manualReviewNote.textContent = result.ood_reason
+      ? `${result.ood_reason} We've still saved your report so a team member can review it by hand — if you uploaded the wrong photo by mistake, feel free to submit again with the correct one.`
+      : "Our AI wasn't confident enough to auto-classify this photo, so it's been flagged for a team member to review by hand — your report is still saved and will be triaged correctly.";
+    manualReviewNote.style.display = 'block';
+  } else {
+    manualReviewNote.style.display = 'none';
+  }
 
   const dupNote = document.getElementById('duplicate-note');
   if (result.possible_duplicates && result.possible_duplicates.length > 0) {

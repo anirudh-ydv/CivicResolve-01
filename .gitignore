@@ -18,3 +18,5 @@ build/
 .idea/
 .DS_Store
 *.log
+# AI training datasets
+backend/ai/data/raw/

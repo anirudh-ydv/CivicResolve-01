@@ -52,6 +52,13 @@ class ReportSubmitResponse(BaseModel):
     created_at: str
     possible_duplicates: list = []
     message: str = "Report submitted successfully"
+    # OOD guard fields (ai/ood_guard.py) - response-only, not persisted to
+    # the Report DB model, since this message is only meaningful at the
+    # moment of submission (it's not something an admin needs to see
+    # again later when looking up the report - requires_manual_review +
+    # the admin's own eyes on the photo cover that case).
+    ood_rejected: bool = False
+    ood_reason: Optional[str] = None
 
 
 class ReportResponse(BaseModel):
@@ -115,14 +122,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", 
-        "http://localhost:5174", 
-        "http://127.0.0.1:5173", 
-        "http://127.0.0.1:5174",
-        "http://localhost:5500",
-        "http://127.0.0.1:5500"
-    ],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -321,6 +321,8 @@ async def submit_report(
         status=report.status.value,
         created_at=report.created_at.isoformat(),
         possible_duplicates=risk_result.get("possible_duplicates", []),
+        ood_rejected=ai_result.get("ood_rejected", False),
+        ood_reason=ai_result.get("ood_reason"),
     )
 
 

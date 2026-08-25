@@ -8,8 +8,13 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <!-- Login screen -->
-    <div id="login-container" class="login-container" role="main">
+    <!-- Loading screen shown only briefly, before the stored-token check resolves -->
+    <div id="boot-loading" style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg);">
+      <div class="loading-spinner" style="margin:0 auto 16px;"></div>
+    </div>
+
+    <!-- Login view -->
+    <div id="login-view" class="login-container" role="main" style="display:none;">
       <div class="login-card glass-panel">
         <div class="login-header">
           <div class="login-logo" aria-hidden="true">CR</div>
@@ -31,11 +36,15 @@
             <label for="username" class="form-label">Username</label>
             <input type="text" id="username" class="form-input" placeholder="Enter username" autocomplete="username" required />
           </div>
+
           <div class="form-group">
             <label for="password" class="form-label">Password</label>
             <input type="password" id="password" class="form-input" placeholder="Enter password" autocomplete="current-password" required />
           </div>
-          <button type="submit" id="login-submit-btn" class="btn btn-primary login-submit">Sign In</button>
+
+          <button type="submit" id="login-submit-btn" class="btn btn-primary login-submit" disabled>
+            Sign In
+          </button>
         </form>
 
         <div class="login-hint">
@@ -45,16 +54,16 @@
       </div>
     </div>
 
-    <!-- Loading screen -->
-    <div id="loading-container" style="display:none;align-items:center;justify-content:center;height:100vh;background:var(--bg);">
+    <!-- Dashboard-loading view -->
+    <div id="dashboard-loading" style="display:none;align-items:center;justify-content:center;height:100vh;background:var(--bg);">
       <div style="text-align:center;">
         <div class="loading-spinner" style="margin:0 auto 16px;"></div>
-        <p id="loading-text" style="color:var(--text-muted);"></p>
+        <p style="color:var(--text-muted);">Loading dashboard...</p>
       </div>
     </div>
 
-    <!-- Dashboard -->
-    <div id="dashboard" class="app-layout" style="display:none;">
+    <!-- Main dashboard view -->
+    <div id="app-view" class="app-layout" style="display:none;">
       <header class="header">
         <div class="header-left">
           <div class="logo">CR</div>
@@ -62,8 +71,12 @@
         </div>
         <div class="header-right">
           <div id="stats-cards"></div>
-          <button id="logout-btn" class="btn btn-secondary" style="padding:8px 16px;font-size:13px;height:36px;margin-right:8px;">Sign Out</button>
-          <button id="refresh-btn" class="btn btn-primary" style="padding:8px 16px;font-size:13px;height:36px;">Refresh</button>
+          <button id="logout-btn" class="btn btn-secondary" style="padding:8px 16px;font-size:13px;height:36px;margin-right:8px;">
+            Sign Out
+          </button>
+          <button id="refresh-btn" class="btn btn-primary" style="padding:8px 16px;font-size:13px;height:36px;">
+            Refresh
+          </button>
         </div>
       </header>
 
@@ -81,6 +94,7 @@
               <option value="damaged_sign">Damaged Sign</option>
               <option value="other">Other</option>
             </select>
+
             <select id="status-filter" class="filter-btn" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card-bg);font-size:12px;min-width:140px;">
               <option value="all">All Statuses</option>
               <option value="pending_review">Pending Review</option>
@@ -91,12 +105,13 @@
             </select>
           </div>
         </div>
+
         <div id="reports-table-container"></div>
       </aside>
 
       <main class="map-container">
-        <div id="map" class="map-wrapper"></div>
-        <div id="map-error" style="display:none;position:absolute;top:20px;left:20px;right:20px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:12px 16px;border-radius:8px;font-size:13px;z-index:100;"></div>
+        <div id="map" class="map-wrapper" style="height:100%;width:100%;"></div>
+        <div id="map-error-banner" style="display:none;position:absolute;top:20px;left:20px;right:20px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:12px 16px;border-radius:8px;font-size:13px;z-index:100;"></div>
       </main>
     </div>
 

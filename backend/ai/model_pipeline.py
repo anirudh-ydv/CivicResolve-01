@@ -381,7 +381,7 @@ def train_model(
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
     # Model
-    model = DualHeadResNet(num_classes=NUM_CLASSES, pretrained=False, freeze_backbone=True).to(device)
+    model = DualHeadResNet(num_classes=NUM_CLASSES, pretrained=True, freeze_backbone=True).to(device)
     if resume_from and os.path.exists(resume_from):
         model.load_state_dict(torch.load(resume_from, map_location=device))
         logger.info("Resumed weights from %s", resume_from)
@@ -510,11 +510,47 @@ def predict_image(image_bytes: bytes) -> Dict:
     Main entry point for FastAPI backend.
     Accepts raw image bytes, returns classification + visual severity only.
     Composite risk scoring is handled by risk_engine.py
+
+    Runs a CLIP-based out-of-distribution check (ood_guard.py) BEFORE the
+    specialist classifier. This directly targets the demonstrated failure
+    mode where a photo of something entirely unrelated to infrastructure
+    (a cat, in the reproduced test case) got a confident, wrong category
+    from the specialist model instead of being flagged for review - see
+    ood_guard.py's module docstring for the full reasoning.
     """
     try:
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+        from ai.ood_guard import check_in_domain
+        ood_result = check_in_domain(image)
+
+        if ood_result["ood_check_available"] and not ood_result["is_in_domain"]:
+            logger.info(
+                f"OOD guard rejected image: best in-domain match "
+                f"'{ood_result['best_in_domain_match']}' (score "
+                f"{ood_result['in_domain_score']}) lost to out-of-domain "
+                f"match '{ood_result['best_out_of_domain_match']}' (score "
+                f"{ood_result['out_of_domain_score']})"
+            )
+            return {
+                "category": "unclassified",
+                "raw_category": "other",
+                "severity_score": 5,
+                "confidence": 0.0,
+                "requires_manual_review": True,
+                "ood_rejected": True,
+                "ood_reason": (
+                    f"Image appears to depict '{ood_result['best_out_of_domain_match']}' "
+                    f"rather than infrastructure damage."
+                ),
+            }
+
         engine = get_inference_engine()
-        return engine.predict(image)
+        result = engine.predict(image)
+        result["ood_rejected"] = False
+        result["ood_check_available"] = ood_result["ood_check_available"]
+        return result
+
     except Exception as e:
         logger.error(f"Inference error: {e}")
         # Fallback: inference itself failed, so this absolutely needs a

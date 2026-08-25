@@ -52,32 +52,32 @@ services:
       timeout: 10s
       retries: 3
 
+  # FIXED: these two services used to build+run the old React/Vite dev
+  # server (npm install / npm run dev), which no longer applies now that
+  # the frontend is plain HTML/CSS/vanilla JS with no build step. nginx
+  # just serves the static files directly - no Dockerfile, no npm, no
+  # node_modules volume needed. VITE_API_URL is also gone: the plain JS
+  # version reads its API URL from a hardcoded API_BASE_URL constant in
+  # each app's own config.js instead of a build-time env var.
   frontend-citizen:
-    build:
-      context: ./Frontend/citizen
-      dockerfile: Dockerfile
+    image: nginx:alpine
     ports:
-      - "5173:5173"
+      - "5173:80"
     volumes:
-      - ./Frontend/citizen:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:8000
-    command: npm run dev -- --host 0.0.0.0
+      - ./frontend1/citizen:/usr/share/nginx/html:ro
 
   frontend-admin:
-    build:
-      context: ./Frontend/admin
-      dockerfile: Dockerfile
+    image: nginx:alpine
     ports:
-      - "5174:5174"
+      - "5174:80"
     volumes:
-      - ./Frontend/admin:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:8000
-    command: npm run dev -- --host 0.0.0.0
+      - ./frontend1/admin:/usr/share/nginx/html:ro
 
+# FIXED: postgres_data was referenced by the db service above but was
+# never declared here - docker-compose would refuse to start with a
+# config validation error ("undefined volume"). model_cache and uploads
+# were declared here but never actually used by any service (the real
+# mounts above are bind paths like ./backend/models, not named volumes),
+# so they've been removed rather than left as dead, confusing config.
 volumes:
-  model_cache:
-  uploads:
+  postgres_data:
