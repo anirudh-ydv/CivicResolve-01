@@ -364,7 +364,7 @@ function updateMapMarkers(geojson, priorityFilter, selectedId, onFeatureClick) {
         </div>
         ${critical_proximity_flag ? '<div style="font-size: 12px; color: #dc2626; margin-bottom: 8px;">&#9888; Near Critical Infrastructure</div>' : ''}
         <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">Status: <span style="text-transform: capitalize; color: #1e293b;">${escapedStatus}</span></div>
-        ${description ? `<div style="font-size: 12px; margin-bottom: 8px;">${description}</div>` : ''}
+        ${description ? `<div style="font-size: 12px; margin-bottom: 8px;">${escapeHtmlTable(description)}</div>` : ''}
         <div style="font-size: 11px; color: #94a3b8;">${new Date(created_at).toLocaleString()}</div>
       </div>
     `;

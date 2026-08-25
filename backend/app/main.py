@@ -122,7 +122,11 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
+        allow_origins=[
+        "http://localhost:5173", "http://localhost:5174",
+        "http://127.0.0.1:5173", "http://127.0.0.1:5174",
+        "http://localhost:5500", "http://127.0.0.1:5500",   # VS Code Live Server
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -142,12 +146,15 @@ async def startup_event():
         seed_default_admin(db)
     finally:
         db.close()
-    # Warm up model
+    # Seed hospitals/schools/road segments - previously only ran via
+    # docker-compose's command override, so critical_proximity_flag and
+    # road_type silently defaulted to "not found" for anyone running the
+    # backend locally without docker-compose.
     try:
-        _ = CivicResolveInference()
-        print("AI Model loaded successfully")
+        from models.seed_geo_data import seed
+        seed()
     except Exception as e:
-        print(f"Warning: AI Model not loaded: {e}")
+        print(f"WARNING: geo data seeding failed (non-fatal): {e}")
 
 
 # Helper Functions
