@@ -88,6 +88,18 @@ graph TD
 ```
 
 ---
+## ☁️ Deployment Architecture
+
+CivicResolve uses a cloud-based three-tier deployment architecture:
+
+| Component | Technology | Platform |
+|---|---|---|
+| 🎨 Frontend | HTML5, CSS3, Vanilla JavaScript | **Vercel** |
+| ⚙️ Backend API | FastAPI + Python | **Render** |
+| 🗄️ Database | PostgreSQL | **Neon** |
+| 🤖 AI Inference | PyTorch | **Render Backend** |
+
+---
 
 ## 🚀 Live Demo
 
