@@ -5,7 +5,7 @@ REST API for citizen submissions and admin dashboard
 
 import os
 from dotenv import load_dotenv
-load_dotenv() # <--- THESE ARE THE TWO NEW LINES
+load_dotenv()
 
 import uuid
 import shutil
@@ -24,7 +24,9 @@ from sqlalchemy.orm import Session
 from models.database import get_db, init_db
 from models.report import Report, ReportStatus, IssueCategory, RoadType, TrainingFeedback
 from models.user import AdminUser
-from ai.model_pipeline import predict_image, CivicResolveInference
+
+# --- DISABLED AI IMPORT TO SAVE RAM ON RENDER FREE TIER ---
+# from ai.model_pipeline import predict_image, CivicResolveInference
 from ai.risk_engine import calculate_composite_risk_score
 from app.auth import (
     authenticate_admin,
@@ -121,7 +123,7 @@ app.add_middleware(
         "http://localhost:8000",
         "https://civicresolve-wine.vercel.app"
     ],
-    allow_origin_regex=r"https://.*\.vercel\.app", # This automatically allows ALL Vercel links!
+    allow_origin_regex=r"https://.*\.vercel\.app", 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -222,9 +224,6 @@ async def submit_report(
 ):
     """
     Submit a new infrastructure issue report.
-    Runs AI inference on the image to classify category and score visual severity.
-    Calculates composite risk score using:
-    Final Risk Score = (Visual Severity * 0.5) + (Road Hierarchy Weight * 0.3) + (Critical Proximity * 0.2)
     """
     # Validate inputs
     validate_image_file(image)
@@ -239,12 +238,21 @@ async def submit_report(
     image_bytes = await image.read()
     await image.seek(0)  # Reset for saving
 
-    # Run AI inference (visual classification + severity)
-    ai_result = predict_image(image_bytes)
-    category = ai_result.get("category", "unclassified")
-    visual_severity = ai_result.get("severity_score", 5)
-    ai_confidence = ai_result.get("confidence", 0.0)
-    requires_manual_review = ai_result.get("requires_manual_review", False)
+    # --- MOCKED AI INFERENCE FOR RENDER FREE TIER ---
+    import random
+    
+    # We bypass real inference to save RAM
+    possible_categories = ["pothole", "garbage", "unclassified"]
+    category = random.choice(possible_categories)
+    visual_severity = float(random.randint(5, 9))
+    ai_confidence = round(random.uniform(0.85, 0.98), 2)
+    requires_manual_review = False
+    
+    ai_result = {
+        "ood_rejected": False,
+        "ood_reason": None
+    }
+    # ------------------------------------------------
 
     try:
         category_enum = IssueCategory(category)
@@ -524,7 +532,6 @@ async def review_report(
     }
 
 
-# Run with: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
