@@ -60,5 +60,6 @@ def init_db():
         TrainingFeedback,
     )
     from .user import AdminUser
+    from .citizen_user import CitizenUser
 
     Base.metadata.create_all(bind=engine)

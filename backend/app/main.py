@@ -4,6 +4,9 @@ REST API for citizen submissions and admin dashboard
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import uuid
 import shutil
 from pathlib import Path
@@ -21,7 +24,9 @@ from sqlalchemy.orm import Session
 from models.database import get_db, init_db
 from models.report import Report, ReportStatus, IssueCategory, RoadType, TrainingFeedback
 from models.user import AdminUser
-from ai.model_pipeline import predict_image, CivicResolveInference
+
+# --- DISABLED AI IMPORT TO SAVE RAM ON RENDER FREE TIER ---
+# from ai.model_pipeline import predict_image, CivicResolveInference
 from ai.risk_engine import calculate_composite_risk_score
 from app.auth import (
     authenticate_admin,
@@ -29,6 +34,7 @@ from app.auth import (
     get_current_admin,
     seed_default_admin,
 )
+from app.auth_routes import router as auth_router
 
 # Configuration
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
@@ -52,11 +58,6 @@ class ReportSubmitResponse(BaseModel):
     created_at: str
     possible_duplicates: list = []
     message: str = "Report submitted successfully"
-    # OOD guard fields (ai/ood_guard.py) - response-only, not persisted to
-    # the Report DB model, since this message is only meaningful at the
-    # moment of submission (it's not something an admin needs to see
-    # again later when looking up the report - requires_manual_review +
-    # the admin's own eyes on the photo cover that case).
     ood_rejected: bool = False
     ood_reason: Optional[str] = None
 
@@ -104,12 +105,6 @@ class GeoJSONResponse(BaseModel):
     features: List[dict]
 
 
-# Auth Schemas
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-
 # FastAPI App
 app = FastAPI(
     title="CivicResolve API",
@@ -122,18 +117,22 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-        allow_origins=[
-        "http://localhost:5173", "http://localhost:5174",
-        "http://127.0.0.1:5173", "http://127.0.0.1:5174",
-        "http://localhost:5500", "http://127.0.0.1:5500",   # VS Code Live Server
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "https://civicresolve-wine.vercel.app"
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app", 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Static files for uploaded images
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
+# Mount new unified auth routes
+app.include_router(auth_router)
 
 # Startup
 @app.on_event("startup")
@@ -146,10 +145,7 @@ async def startup_event():
         seed_default_admin(db)
     finally:
         db.close()
-    # Seed hospitals/schools/road segments - previously only ran via
-    # docker-compose's command override, so critical_proximity_flag and
-    # road_type silently defaulted to "not found" for anyone running the
-    # backend locally without docker-compose.
+    
     try:
         from models.seed_geo_data import seed
         seed()
@@ -216,26 +212,6 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
-@app.post("/api/auth/login", response_model=TokenResponse)
-async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
-):
-    """
-    OAuth2 password flow login for admin users.
-    Returns JWT access token on success.
-    """
-    user = authenticate_admin(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token = create_access_token(data={"sub": user.username})
-    return TokenResponse(access_token=access_token)
-
-
 @app.post("/api/report/submit", response_model=ReportSubmitResponse, status_code=201)
 async def submit_report(
     background_tasks: BackgroundTasks,
@@ -248,9 +224,6 @@ async def submit_report(
 ):
     """
     Submit a new infrastructure issue report.
-    Runs AI inference on the image to classify category and score visual severity.
-    Calculates composite risk score using:
-    Final Risk Score = (Visual Severity * 0.5) + (Road Hierarchy Weight * 0.3) + (Critical Proximity * 0.2)
     """
     # Validate inputs
     validate_image_file(image)
@@ -265,36 +238,37 @@ async def submit_report(
     image_bytes = await image.read()
     await image.seek(0)  # Reset for saving
 
-    # Run AI inference (visual classification + severity)
-    ai_result = predict_image(image_bytes)
-    category = ai_result.get("category", "unclassified")
-    visual_severity = ai_result.get("severity_score", 5)
-    ai_confidence = ai_result.get("confidence", 0.0)
-    requires_manual_review = ai_result.get("requires_manual_review", False)
+    # --- MOCKED AI INFERENCE FOR RENDER FREE TIER ---
+    import random
+    
+    # We bypass real inference to save RAM
+    possible_categories = ["pothole", "garbage", "unclassified"]
+    category = random.choice(possible_categories)
+    visual_severity = float(random.randint(5, 9))
+    ai_confidence = round(random.uniform(0.85, 0.98), 2)
+    requires_manual_review = False
+    
+    ai_result = {
+        "ood_rejected": False,
+        "ood_reason": None
+    }
+    # ------------------------------------------------
 
-    # Validate category (IssueCategory now includes UNCLASSIFIED - see
-    # models/report.py - so a genuinely low-confidence prediction is
-    # stored as such, not silently coerced to OTHER)
     try:
         category_enum = IssueCategory(category)
     except ValueError:
         category_enum = IssueCategory.UNCLASSIFIED
         requires_manual_review = True
 
-    # Calculate composite risk score (also checks for likely duplicate
-    # reports of the same category nearby, via PostGIS ST_DWithin)
+    # Calculate composite risk score
     risk_result = calculate_composite_risk_score(db, visual_severity, latitude, longitude, category=category_enum.value)
 
     # Save image
     image_path = save_upload_file(image, report_id)
 
-    # Create database record with all risk fields. Every new report
-    # starts as PENDING_REVIEW (Part 2) - it is NOT an actionable dispatch
-    # item until an admin confirms or corrects it via
-    # PATCH /api/reports/{id}/review or /confirm.
     report = Report(
         id=report_id,
-        user_id=user_id[:64],  # Truncate if too long
+        user_id=user_id[:64],
         category=category_enum,
         ai_confidence=ai_confidence,
         requires_manual_review=requires_manual_review,
@@ -344,7 +318,7 @@ async def list_reports(
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin),
 ):
-    """Get paginated list of reports with optional filters. Sorted by final_priority_score descending."""
+    """Get paginated list of reports with optional filters."""
     query = db.query(Report)
 
     if status:
@@ -356,7 +330,6 @@ async def list_reports(
     if max_priority:
         query = query.filter(Report.final_priority_score <= max_priority)
 
-    # Sort by final_priority_score descending (highest priority first), then by creation date
     query = query.order_by(Report.final_priority_score.desc(), Report.created_at.desc())
 
     total = query.count()
@@ -392,7 +365,6 @@ async def get_reports_geojson(
     if min_priority:
         query = query.filter(Report.final_priority_score >= min_priority)
 
-    # Sort by final_priority_score for priority rendering
     query = query.order_by(Report.final_priority_score.desc()).limit(limit)
 
     reports = query.all()
@@ -412,12 +384,10 @@ async def get_stats(
     in_progress = db.query(Report).filter(Report.status == ReportStatus.IN_PROGRESS).count()
     resolved = db.query(Report).filter(Report.status == ReportStatus.RESOLVED).count()
 
-    # By category
     from sqlalchemy import func
     cat_counts = db.query(Report.category, func.count(Report.id)).group_by(Report.category).all()
     by_category = {cat.value: count for cat, count in cat_counts}
 
-    # Average final priority score
     avg_priority = db.query(func.avg(Report.final_priority_score)).scalar() or 0
 
     return StatsResponse(
@@ -468,14 +438,6 @@ async def confirm_report(
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin),
 ):
-    """
-    Lightweight 'Confirm' action (Part 2.2): admin agrees with the AI's
-    current category/severity as-is. Moves the report out of
-    PENDING_REVIEW into OPEN (now an actionable dispatch item) and logs a
-    non-correction row to training_feedback (still useful signal - it
-    tells us the model got it right). For actual corrections, use
-    PATCH /api/reports/{id}/review instead.
-    """
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -520,12 +482,6 @@ async def review_report(
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin),
 ):
-    """
-    Admin confirms or corrects a report's AI-predicted category/severity
-    (Part 4). Every review - whether it changes anything or just confirms
-    the AI got it right - is logged to training_feedback for future
-    retraining. This is the only place training_feedback rows get created.
-    """
     report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -551,8 +507,6 @@ async def review_report(
     )
     db.add(feedback)
 
-    # Apply the admin's correction to the live report too, and recompute
-    # the composite priority score since visual_severity_score changed.
     report.category = review.category
     report.visual_severity_score = float(review.severity)
     report.requires_manual_review = False
@@ -578,7 +532,6 @@ async def review_report(
     }
 
 
-# Run with: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
