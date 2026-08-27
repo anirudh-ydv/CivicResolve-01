@@ -5,7 +5,7 @@ sqlalchemy==2.0.25
 pydantic==2.5.3
 pydantic[email]==2.5.3
 python-multipart==0.0.6
-pillow==10.1.0
+Pillow>=10.2.0
 torch
 torchvision
 numpy==1.26.3
