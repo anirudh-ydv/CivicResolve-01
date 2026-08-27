@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#2563eb" />
+    <title>CivicResolve</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <!-- Boot loading (checking stored token) -->
+    <div id="boot-loading" class="full-screen-center">
+      <div class="loading-spinner"></div>
+    </div>
+
+    <!-- ============ LOGIN ============ -->
+    <div id="login-view" class="login-container" role="main" style="display:none;">
+      <div class="login-card glass-panel">
+        <div class="login-header">
+          <div class="login-logo" aria-hidden="true">CR</div>
+          <h1>CivicResolve</h1>
+          <p>Sign in to report or manage issues</p>
+        </div>
+
+        <div id="login-error" class="auth-error" role="alert" style="display:none;">
+          <span id="login-error-text"></span>
+        </div>
+
+        <form id="login-form" novalidate>
+          <div class="form-group">
+            <label for="login-username" class="form-label">Email (or admin username)</label>
+            <input type="text" id="login-username" class="form-input" placeholder="you@example.com" autocomplete="username" required />
+          </div>
+          <div class="form-group">
+            <label for="login-password" class="form-label">Password</label>
+            <input type="password" id="login-password" class="form-input" placeholder="Enter password" autocomplete="current-password" required />
+          </div>
+          <button type="submit" id="login-submit-btn" class="btn btn-primary login-submit">Sign In</button>
+        </form>
+
+        <p class="auth-switch">
+          New citizen? <a href="#" id="show-signup-link">Create an account</a>
+        </p>
+
+        <div class="login-hint">
+          <p>Admin demo login: <code>admin</code> / <code>changeme123</code></p>
+          <p>Citizen demo login: <code>citizen@example.com</code> / <code>citizen123</code></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SIGNUP (citizens only) ============ -->
+    <div id="signup-view" class="login-container" role="main" style="display:none;">
+      <div class="login-card glass-panel">
+        <div class="login-header">
+          <div class="login-logo" aria-hidden="true">CR</div>
+          <h1>Create a Citizen Account</h1>
+          <p>Sign up to report infrastructure issues</p>
+        </div>
+
+        <div id="signup-error" class="auth-error" role="alert" style="display:none;">
+          <span id="signup-error-text"></span>
+        </div>
+
+        <form id="signup-form" novalidate>
+          <div class="form-group">
+            <label for="signup-email" class="form-label">Email</label>
+            <input type="email" id="signup-email" class="form-input" placeholder="you@example.com" autocomplete="email" required />
+          </div>
+          <div class="form-group">
+            <label for="signup-password" class="form-label">Password</label>
+            <input type="password" id="signup-password" class="form-input" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required />
+          </div>
+          <div class="form-group">
+            <label for="signup-confirm-password" class="form-label">Confirm Password</label>
+            <input type="password" id="signup-confirm-password" class="form-input" placeholder="Re-enter password" autocomplete="new-password" minlength="8" required />
+          </div>
+          <button type="submit" id="signup-submit-btn" class="btn btn-primary login-submit">Create Account</button>
+        </form>
+
+        <p class="auth-switch">
+          Already have an account? <a href="#" id="show-login-link">Sign in</a>
+        </p>
+        <p class="auth-hint-small">Note: admin accounts cannot be created here — there is a single fixed admin login for evaluators.</p>
+      </div>
+    </div>
+
+    <!-- ============ VERIFY-EMAIL NOTICE ============ -->
+    <div id="verify-notice-view" class="login-container" role="main" style="display:none;">
+      <div class="login-card glass-panel">
+        <div class="login-header">
+          <div class="login-logo" aria-hidden="true">&#9993;</div>
+          <h1>Check Your Email</h1>
+        </div>
+        <p id="verify-notice-text" style="margin: 16px 0; color: var(--text);"></p>
+        <button type="button" id="verify-notice-back-btn" class="btn btn-secondary">Back to Sign In</button>
+      </div>
+    </div>
+
+    <!-- ============ CITIZEN VIEW ============ -->
+    <div id="citizen-view" class="citizen-app" style="display:none;">
+      <header class="header" role="banner">
+        <div class="header-content">
+          <div class="logo" aria-hidden="true">CR</div>
+          <div class="header-text">
+            <h1>CivicResolve</h1>
+            <p>Report infrastructure issues instantly</p>
+          </div>
+          <div id="citizen-user-info" class="user-profile-badge" style="margin-left: auto;"></div>
+          <button id="citizen-logout-btn" class="btn btn-secondary logout-btn-small" style="margin-left: 0;">Sign Out</button>
+        </div>
+      </header>
+
+      <main class="main-content" role="main">
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">New Report</h2></div>
+          <div class="card-body">
+            <form id="report-form" novalidate>
+              <div id="gps-status" class="gps-status loading">
+                <span class="gps-spinner" id="gps-spinner" aria-hidden="true"></span>
+                <span id="gps-status-text">Getting your location...</span>
+                <button type="button" id="gps-retry-btn" class="btn btn-secondary" style="padding:6px 12px;font-size:12px;margin-left:auto;display:none;">Retry</button>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Photo of the Issue *</label>
+                <div id="upload-area" class="upload-area" role="button" tabindex="0" aria-label="Upload image">
+                  <input id="file-input" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only" aria-hidden="true" />
+                  <div id="upload-placeholder">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <p class="upload-text">Tap or drag &amp; drop to add a photo</p>
+                    <p class="upload-hint">JPG, PNG, or WebP &bull; Max 10MB</p>
+                  </div>
+                  <div id="upload-preview-container" class="image-preview-container" style="display:none;">
+                    <img id="upload-preview-img" class="image-preview" alt="Preview" />
+                    <button type="button" id="remove-image-btn" class="remove-image-btn" aria-label="Remove image">&times;</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="description">Description (Optional)</label>
+                <textarea id="description" class="form-textarea" placeholder="Describe the issue... (e.g., 'Large pothole near crosswalk')" rows="3" maxlength="500"></textarea>
+                <p class="form-hint">Reporting a damaged or vandalized sign? Our AI can't reliably recognize this category yet — please mention "sign" in the description above so our team can review and file it correctly.</p>
+              </div>
+
+              <button type="submit" id="submit-btn" class="btn btn-primary submit-btn" disabled>Submit Report</button>
+
+              <div id="error-toast" class="toast error" role="alert" style="display:none;">
+                <div class="toast-content">
+                  <div class="toast-title">Submission Failed</div>
+                  <div class="toast-message" id="error-toast-message"></div>
+                </div>
+              </div>
+
+              <div id="result-card" class="result-card" role="status" style="display:none;">
+                <div class="result-header">&check; Report Submitted Successfully!</div>
+                <div class="result-grid" id="result-grid"></div>
+                <div id="manual-review-note" style="display:none;margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--warning-bg,#fff7ed);color:var(--warning-text,#9a3412);font-size:13px;">
+                  Our AI wasn't confident enough to auto-classify this photo, so it's been flagged for a team member to review by hand.
+                </div>
+                <div id="duplicate-note" style="display:none;margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--info-bg,#eff6ff);color:var(--info-text,#1e40af);font-size:13px;"></div>
+                <button type="button" id="new-report-btn" class="btn btn-secondary" style="margin-top:16px;width:100%;">Submit Another Report</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </main>
+
+      <footer class="footer" role="contentinfo" style="text-align: center; padding: 24px; font-size: 12px; color: var(--text-muted); background: var(--bg); border-top: 1px solid var(--border);">
+        <p style="margin-bottom: 8px;">CivicResolve MVP &bull; <a href="http://localhost:8000/docs" target="_blank" style="color: var(--primary); text-decoration: none;">API Docs</a></p>
+        <p>Your location is submitted with this report so it can be mapped and dispatched, and is kept as part of the report record.</p>
+      </footer>
+    </div>
+
+    <!-- ============ ADMIN: dashboard-loading ============ -->
+    <div id="dashboard-loading" class="full-screen-center" style="display:none;">
+      <div style="text-align:center;">
+        <div class="loading-spinner"></div>
+        <p style="color:var(--text-muted);margin-top:16px;">Loading dashboard...</p>
+      </div>
+    </div>
+
+    <!-- ============ ADMIN VIEW ============ -->
+    <div id="admin-view" class="app-layout" style="display:none;">
+      <header class="header admin-header">
+        <div class="header-left">
+          <div class="logo">CR</div>
+          <h1>CivicResolve Admin</h1>
+        </div>
+        <div class="header-right">
+          <!-- Stats cards moved from here to the new rightbar below -->
+          <div id="admin-user-info" class="user-profile-badge"></div>
+          <button id="admin-logout-btn" class="btn btn-secondary" style="padding:8px 16px;font-size:13px;height:36px;margin-right:8px;">Sign Out</button>
+          <button id="refresh-btn" class="btn btn-primary" style="padding:8px 16px;font-size:13px;height:36px;">Refresh</button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-title">Filters</div>
+          <div class="filters">
+            <select id="category-filter" class="filter-btn">
+              <option value="all">All Categories</option>
+              <option value="pothole">Pothole</option>
+              <option value="broken_streetlight">Broken Streetlight</option>
+              <option value="graffiti">Graffiti</option>
+              <option value="illegal_dumping">Illegal Dumping</option>
+              <option value="cracked_sidewalk">Cracked Sidewalk</option>
+              <option value="damaged_sign">Damaged Sign</option>
+              <option value="other">Other</option>
+            </select>
+            <select id="status-filter" class="filter-btn">
+              <option value="all">All Statuses</option>
+              <option value="pending_review">Pending Review</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+        <div id="reports-table-container"></div>
+      </aside>
+
+      <main class="map-container">
+        <div id="map" style="height:100%;width:100%;"></div>
+        <div id="map-error-banner" class="map-error-banner" style="display:none;"></div>
+      </main>
+
+      <!-- NEW: Dedicated Right Sidebar for Stats -->
+      <aside class="rightbar">
+        <div class="sidebar-title" style="margin-bottom: 16px; text-align: center;">Live Overview</div>
+        <div id="stats-cards"></div>
+      </aside>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

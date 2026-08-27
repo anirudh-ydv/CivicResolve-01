@@ -59,19 +59,12 @@ services:
   # node_modules volume needed. VITE_API_URL is also gone: the plain JS
   # version reads its API URL from a hardcoded API_BASE_URL constant in
   # each app's own config.js instead of a build-time env var.
-  frontend-citizen:
+  frontend1:
     image: nginx:alpine
     ports:
       - "5173:80"
     volumes:
-      - ./frontend1/citizen:/usr/share/nginx/html:ro
-
-  frontend-admin:
-    image: nginx:alpine
-    ports:
-      - "5174:80"
-    volumes:
-      - ./frontend1/admin:/usr/share/nginx/html:ro
+      - ./frontend1/app:/usr/share/nginx/html:ro
 
 # FIXED: postgres_data was referenced by the db service above but was
 # never declared here - docker-compose would refuse to start with a
