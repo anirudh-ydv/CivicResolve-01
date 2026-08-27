@@ -113,25 +113,19 @@ app = FastAPI(
 )
 
 # CORS
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173", 
-        "http://localhost:5174",
-        "http://127.0.0.1:5173", 
-        "http://127.0.0.1:5174",
-        "http://localhost:5500", 
-        "http://127.0.0.1:5500",
+        "http://localhost:5173",
         "http://localhost:3000",
         "http://localhost:8000",
         "https://civicresolve-wine.vercel.app"
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app", # This automatically allows ALL Vercel links!
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Static files for uploaded images
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
