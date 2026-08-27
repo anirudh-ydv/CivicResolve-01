@@ -1,29 +1,5 @@
 """
 Unified auth routes.
-
-- POST /api/auth/signup     - CITIZENS ONLY. Creates an unverified
-                               CitizenUser, sends a real verification
-                               email. There is deliberately no equivalent
-                               admin-signup endpoint anywhere in this file
-                               or the rest of the app - admin is always the
-                               single seeded account from env vars
-                               (ADMIN_USERNAME/ADMIN_PASSWORD), exactly as
-                               it already was before this change.
-- GET  /api/auth/verify-email?token=... - flips is_verified to True.
-- POST /api/auth/login      - UNIFIED for both roles. Tries the seeded
-                               admin credentials first, then falls back to
-                               a citizen_users lookup by email. Returns a
-                               JWT with a "role" claim so the single
-                               merged frontend knows which view to show.
-
-Wire this into your existing app/main.py with:
-    from app.auth_routes import router as auth_router
-    app.include_router(auth_router)
-
-And remove/retire the OLD single-purpose POST /api/auth/login admin-only
-endpoint if main.py still has one, so there's only one /api/auth/login in
-the app - two routes on the same path will silently shadow each other
-depending on registration order, which is worse than either alone.
 """
 import os
 import secrets
@@ -92,67 +68,51 @@ def decode_access_token(token: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Signup (citizens only - no admin equivalent exists anywhere)
+# Signup (citizens only)
 # ---------------------------------------------------------------------------
 @router.post("/signup", response_model=SignupResponse, status_code=201)
 async def signup(payload: SignupRequest, db: Session = Depends(get_db)):
     existing = db.query(CitizenUser).filter(CitizenUser.email == payload.email).first()
     if existing:
-        # Don't leak whether an email exists via a different error shape -
-        # same generic 400 either way.
         raise HTTPException(status_code=400, detail="Could not create account with that email")
 
     if len(payload.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     token = secrets.token_urlsafe(32)
+    
+    # --- MODIFIED: Auto-verify user and clear tokens ---
     user = CitizenUser(
         id=uuid.uuid4(),
         email=payload.email,
         password_hash=pwd_context.hash(payload.password),
-        is_verified=False,
-        verification_token=token,
-        verification_token_expires_at=datetime.utcnow() + timedelta(hours=VERIFICATION_TOKEN_EXPIRE_HOURS),
+        is_verified=True,  # Set to True so users can log in immediately
+        verification_token=None,
+        verification_token_expires_at=None,
     )
     db.add(user)
     db.commit()
 
-    email_sent = False
-    email_error = None
-    try:
-        send_verification_email(payload.email, token)
-        email_sent = True
-    except Exception as e:
-        # Real failure, surfaced honestly - the account exists but is
-        # unverified and the user has no way to verify it until an admin
-        # intervenes or SMTP gets fixed. Don't claim success here.
-        email_error = str(e)
-
-    if not email_sent:
-        # Account was created (so the email-uniqueness check above stays
-        # meaningful for a retry), but be explicit in the response that
-        # verification could not actually be sent - a silent "check your
-        # email" message when no email was sent would be exactly the kind
-        # of fabricated-success this project has been trying to avoid
-        # elsewhere.
-        return SignupResponse(
-            message=(
-                "Account created, but the verification email could not be "
-                f"sent ({email_error}). Contact an admin to verify your "
-                "account manually, or fix SMTP configuration and try "
-                "signing up again with a different email."
-            ),
-            email_sent=False,
-        )
+    # --- MODIFIED: Email verification disabled for development ---
+    # email_sent = False
+    # email_error = None
+    # try:
+    #     send_verification_email(payload.email, token)
+    #     email_sent = True
+    # except Exception as e:
+    #     email_error = str(e)
+    #
+    # if not email_sent:
+    #     return SignupResponse(...)
 
     return SignupResponse(
-        message="Account created. Check your email for a verification link.",
-        email_sent=True,
+        message="Account created instantly. You can now log in.",
+        email_sent=False,
     )
 
 
 # ---------------------------------------------------------------------------
-# Email verification
+# Email verification (Left intact in case you turn it back on later)
 # ---------------------------------------------------------------------------
 @router.get("/verify-email")
 async def verify_email(token: str = Query(...), db: Session = Depends(get_db)):
