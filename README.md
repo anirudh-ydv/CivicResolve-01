@@ -1,5 +1,6 @@
 # 🏙️ CivicResolve
 ### *Automated Public Infrastructure Reporting System with Composite Risk Scoring*
+> 🚀 CivicResolve is actively being developed with a focus on AI-assisted civic issue detection and intelligent prioritization.
 
 <div align="center">
 
