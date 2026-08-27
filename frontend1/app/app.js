@@ -7,7 +7,7 @@
 // ============================================================
 
 // --- 1. Config ---
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'https://civicresolve-01.onrender.com';
 const TOKEN_KEY = 'civicresolve_token';
 const ROLE_KEY = 'civicresolve_role';
 
